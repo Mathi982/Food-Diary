@@ -1,5 +1,6 @@
 import csv
 import os
+import itertools
 
 CSV_FILE = 'food_items.csv'
 CATEGORY_FILE = 'categories.csv'
@@ -216,16 +217,69 @@ def search_food_items():
     else:
         print("No items found matching the search criteria.")
 
+def generate_meal_plan(food_items, criteria):
+    """ Generate meal plans based on specified criteria. """
+    def meets_criteria(combination):
+        total_calories = sum(float(item['Calories']) for item in combination)
+        total_protein = sum(float(item['Protein']) for item in combination)
+        total_price = sum(float(item['Price']) for item in combination)
+
+        return ((criteria['calories_lower'] <= total_calories <= criteria['calories_upper']) if criteria['calories_lower'] is not None else True) and \
+               ((criteria['protein_lower'] <= total_protein <= criteria['protein_upper']) if criteria['protein_lower'] is not None else True) and \
+               ((criteria['price_lower'] <= total_price <= criteria['price_upper']) if criteria['price_lower'] is not None else True)
+
+    # Adjust 'r' as needed for combination size
+    for r in range(1, len(food_items) + 1):
+        for combination in itertools.combinations(food_items, r):
+            if meets_criteria(combination):
+                yield combination
+
+def get_user_criteria():
+    """ Get meal plan criteria from the user. """
+    print("Enter your meal plan criteria (leave blank if no preference):")
+    criteria = {
+        'calories_lower': None, 'calories_upper': None,
+        'protein_lower': None, 'protein_upper': None,
+        'price_lower': None, 'price_upper': None
+    }
+    for key in criteria:
+        value = input(f"{key.replace('_', ' ').title()}: ")
+        criteria[key] = float(value) if value else None
+    return criteria
+
+
+def display_and_save_meal_plans(meal_plans, user_criteria, file_path):
+    """ Display generated meal plans in a table and save them to a CSV file. """
+    with open(file_path, 'w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(['Meal Plan', 'User Criteria', 'Total Calories', 'Total Protein', 'Total Price'])
+
+        for idx, plan in enumerate(meal_plans, start=1):
+            total_calories = sum(float(item['Calories']) for item in plan)
+            total_protein = sum(float(item['Protein']) for item in plan)
+            total_price = sum(float(item['Price']) for item in plan)
+            plan_details = [f"{item['Name']} ({item['Calories']} cal, {item['Protein']}g prot, £{item['Price']})" for item in plan]
+
+            print(f"Meal Plan {idx}:")
+            for detail in plan_details:
+                print(f" - {detail}")
+            print(f"Totals: {total_calories} calories, {total_protein}g protein, £{total_price}\n")
+
+            criteria_details = ', '.join([f"{k}: {v}" for k, v in user_criteria.items() if v is not None])
+            writer.writerow([f"Plan {idx}", criteria_details, total_calories, total_protein, total_price] + plan_details)
+
 
 def main():
     categories = load_categories()
     create_csv_file()
+    food_items = read_food_items()
 
     while True:
-        print("\nFood Item Entry")
+        print("\nMenu Options")
         print("1. Add Food Item")
         print("2. Show Items")
-        print("3. Exit")
+        print("3. Generate Meal Plan")
+        print("4. Exit")
 
         choice = input("Enter your choice: ")
         if choice == '1':
@@ -235,9 +289,16 @@ def main():
         elif choice == '2':
             show_items()
         elif choice == '3':
+            criteria = get_user_criteria()
+            meal_plans = list(generate_meal_plan(food_items, criteria))
+            if meal_plans:
+                display_and_save_meal_plans(meal_plans, criteria, 'meal_plans.csv')
+            else:
+                print("No meal plans found that match the criteria.")
+        elif choice == '4':
             break
         else:
-            print("Invalid choice. Please enter a number between 1 and 3.")
+            print("Invalid choice. Please enter a number between 1 and 4.")
 
 if __name__ == '__main__':
     main()
