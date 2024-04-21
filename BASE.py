@@ -224,15 +224,23 @@ def generate_meal_plan(food_items, criteria):
         total_protein = sum(float(item['Protein']) for item in combination)
         total_price = sum(float(item['Price']) for item in combination)
 
-        return ((criteria['calories_lower'] <= total_calories <= criteria['calories_upper']) if criteria['calories_lower'] is not None else True) and \
-               ((criteria['protein_lower'] <= total_protein <= criteria['protein_upper']) if criteria['protein_lower'] is not None else True) and \
-               ((criteria['price_lower'] <= total_price <= criteria['price_upper']) if criteria['price_lower'] is not None else True)
+        # Check both lower and upper bounds
+        calorie_check = (total_calories >= (criteria['calories_lower'] if criteria['calories_lower'] is not None else float('-inf'))) and \
+                        (total_calories <= (criteria['calories_upper'] if criteria['calories_upper'] is not None else float('inf')))
+        protein_check = (total_protein >= (criteria['protein_lower'] if criteria['protein_lower'] is not None else float('-inf'))) and \
+                        (total_protein <= (criteria['protein_upper'] if criteria['protein_upper'] is not None else float('inf')))
+        price_check = (total_price >= (criteria['price_lower'] if criteria['price_lower'] is not None else float('-inf'))) and \
+                      (total_price <= (criteria['price_upper'] if criteria['price_upper'] is not None else float('inf')))
+
+        return calorie_check and protein_check and price_check
 
     # Adjust 'r' as needed for combination size
     for r in range(1, len(food_items) + 1):
         for combination in itertools.combinations(food_items, r):
             if meets_criteria(combination):
                 yield combination
+
+
 
 def get_user_criteria():
     """ Get meal plan criteria from the user. """
@@ -249,7 +257,7 @@ def get_user_criteria():
 
 
 def display_and_save_meal_plans(meal_plans, user_criteria, file_path):
-    """ Display generated meal plans in a table and save them to a CSV file. """
+
     with open(file_path, 'w', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(['Meal Plan', 'User Criteria', 'Total Calories', 'Total Protein', 'Total Price'])
@@ -269,6 +277,42 @@ def display_and_save_meal_plans(meal_plans, user_criteria, file_path):
             writer.writerow([f"Plan {idx}", criteria_details, total_calories, total_protein, total_price] + plan_details)
 
 
+def calculate_daily_intake(food_items):
+    """ Calculate daily intake of calories and protein from selected food items. """
+    total_calories = 0
+    total_protein = 0
+    selected_items = []
+    first_prompt = True 
+
+    while True:
+        if first_prompt:
+            print("\nWhat have you eaten today? Choose from the following:")
+            first_prompt = False  # Change the flag after the first prompt
+        else:
+            print("Anything else? Choose from the following: (Enter '0' to finish)")
+
+        for index, item in enumerate(food_items, 1):
+            print(f"{index}. {item['Name']} - {item['Calories']} calories, {item['Protein']}g protein")
+
+        choice = input("Enter the number of the food item or '0' to finish: ")
+        print()
+        if choice == '0':
+            break
+        elif choice.isdigit() and 1 <= int(choice) <= len(food_items):
+            selected_item = food_items[int(choice) - 1]
+            selected_items.append(selected_item['Name'])
+            total_calories += float(selected_item['Calories'])
+            total_protein += float(selected_item['Protein'])
+        else:
+            print("Invalid choice. Please try again.")
+
+    print("\nSummary of your daily intake:")
+    for item in selected_items:
+        print(f"- {item}")
+    print(f"Total Calories: {total_calories}, Total Protein: {total_protein}g")
+
+
+
 def main():
     categories = load_categories()
     create_csv_file()
@@ -279,7 +323,8 @@ def main():
         print("1. Add Food Item")
         print("2. Show Items")
         print("3. Generate Meal Plan")
-        print("4. Exit")
+        print("4. Calculate Daily Intake")
+        print("E. Exit")
 
         choice = input("Enter your choice: ")
         if choice == '1':
@@ -296,9 +341,12 @@ def main():
             else:
                 print("No meal plans found that match the criteria.")
         elif choice == '4':
+            calculate_daily_intake(food_items)
+        elif choice == 'E' or 'e':
             break
         else:
-            print("Invalid choice. Please enter a number between 1 and 4.")
+            print("Invalid choice. Please enter a number between 1 and 5.")
+
 
 if __name__ == '__main__':
     main()
